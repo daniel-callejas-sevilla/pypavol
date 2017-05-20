@@ -3,7 +3,9 @@
 
 import sys
 from PyQt5.QtWidgets import QWidget, QGridLayout, QLabel, QSlider, QCheckBox, QApplication
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPixmap, QPainter, QPen
+import PyQt5.QtCore
+import textwrap
 
 import pulsectl
 
@@ -14,16 +16,38 @@ pulse = pulsectl.Pulse('PyPaVol') # TODO get rid of global object
 def get_tracks():
     tracks = []
     for t in pulse.sink_input_list():
-        track = (t.proplist['application.name'], t.sink, 100 * t.volume.value_flat)
+        track = (t.proplist['application.name'], t.sink, int(100 * t.volume.value_flat))
         tracks.append(track)
     return tracks
 
 def get_sinks():
     sinks = []
     for s in pulse.sink_list():
-        sink = (s.description, 100 * s.volume.value_flat)
+        sink = (textwrap.shorten(s.description, width=18), int(100 * s.volume.value_flat))
         sinks.append(sink)
     return sinks
+
+class Corner(QWidget):
+    def __init__(self, x, y):
+        super().__init__()
+        self.x = x
+        self.y = y
+    
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        pen = QPen(PyQt5.QtCore.Qt.black, 1)
+        pen.setDashPattern([1, 1])
+        painter.setPen(pen)
+        half_width, half_height = self.width() / 2, self.height() / 2
+        full_width, full_height = self.width(), self.height()
+        if self.x < self.y:
+            painter.drawLine(0, half_height, full_width, half_height)
+        elif self.x == self.y:
+            painter.drawLine(0, half_height, half_width, half_height)
+            painter.drawLine(half_width, half_height, half_width, full_height)
+        else:
+            painter.drawLine(half_width, 0, half_width, full_height)
+        painter.end()
 
 class PyPaVol_demo(QWidget):
 
@@ -34,6 +58,8 @@ class PyPaVol_demo(QWidget):
     def initUI(self):
         
         grid = QGridLayout()
+        grid.setHorizontalSpacing(0)
+        grid.setVerticalSpacing(0)
         self.setLayout(grid)
         
         tracks = get_tracks()
@@ -43,35 +69,43 @@ class PyPaVol_demo(QWidget):
             print(i, track)
             name, sink, vol = track
             l = QLabel(name)
-            l.setMaximumWidth(80)
-            l.setMinimumWidth(80)
-            grid.addWidget(l, 0, i)
+            grid.addWidget(l, 0, i, PyQt5.QtCore.Qt.AlignHCenter)
             for j, _ in enumerate(sinks):
                 c = QCheckBox(self)
                 c.setChecked(j == sink)
-                grid.addWidget(c, j + 1, i)
-            s = QSlider(Qt.Vertical, self)
+                grid.addWidget(c, j + 1, i, PyQt5.QtCore.Qt.AlignHCenter)
+            s = QSlider(PyQt5.QtCore.Qt.Vertical, self)
             s.setMaximum(153)
             s.setMinimum(0)
             s.setValue(vol)
-            grid.addWidget(s, len(sinks) + 2, i)
+            grid.addWidget(s, len(sinks) + 2, i, PyQt5.QtCore.Qt.AlignHCenter)
             l = QLabel(str(vol))
-            l.setMaximumWidth(80)
-            l.setMinimumWidth(80)
-            grid.addWidget(l, len(sinks) + 3, i)
+            grid.addWidget(l, len(sinks) + 3, i, PyQt5.QtCore.Qt.AlignHCenter)
             
-        skip_h = len(tracks) + 1
+        skip_h = len(tracks)
         skip_v = len(sinks) + 1
         
         for i, sink in enumerate(sinks):
             name, vol = sink
             l = QLabel(name)
-            grid.addWidget(l, skip_v, skip_h + i)
-            s = QSlider(Qt.Vertical, self)
+            pos = skip_h + len(sinks) - i - 1
+            grid.addWidget(l, skip_v, pos)
+            s = QSlider(PyQt5.QtCore.Qt.Vertical, self)
             s.setMaximum(153)
             s.setMinimum(0)
             s.setValue(vol)
-            grid.addWidget(s, skip_v + 1, skip_h + i)
+            grid.addWidget(s, skip_v + 1, pos, PyQt5.QtCore.Qt.AlignHCenter)
+            l = QLabel(str(vol))
+            grid.addWidget(l, skip_v + 2, pos, PyQt5.QtCore.Qt.AlignHCenter)
+
+        blocks = [(x, y) for x in range(skip_h, skip_h + len(sinks)) 
+                         for y in range(1, skip_v)]
+        
+        for x, y in blocks:
+            l = Corner(x - skip_h + 1, skip_v - y)
+            grid.addWidget(l, y, x)
+        
+        print(blocks)
                     
         self.setWindowTitle('PyPaVol')
         self.show()
