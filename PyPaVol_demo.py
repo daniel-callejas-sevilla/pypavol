@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from PyQt5.QtWidgets import QWidget, QGridLayout, QLabel, QSlider, QCheckBox, QApplication
+from PyQt5.QtWidgets import QWidget, QGridLayout, QLabel, QSlider, QRadioButton, QApplication, QButtonGroup
 from PyQt5.QtGui import QPixmap, QPainter, QPen
 import PyQt5.QtCore
 import textwrap
@@ -58,8 +58,14 @@ class PyPaVol_demo(QWidget):
         
     def setVolume(self, o, volume):
         vol = volume / 100
+        # TODO assumes two channels
         v = pulsectl.PulseVolumeInfo([vol, vol])
         pulse.volume_set(o, v)
+
+    def setSink(self, track, sink, connect):
+        if connect:
+            print("Send track {} to sink {}".format(track, sink))
+            pulse.sink_input_move(track.index, sink.index)            
     
     def initUI(self):
         
@@ -71,14 +77,19 @@ class PyPaVol_demo(QWidget):
         tracks = get_tracks()
         sinks = get_sinks()
         
+        # TODO clean up this mess
         for i, track in enumerate(tracks):
             print(i, track)
             name, sink, vol, o = track
             l = QLabel(name)
             grid.addWidget(l, 0, i, PyQt5.QtCore.Qt.AlignHCenter)
-            for j, _ in enumerate(sinks):
-                c = QCheckBox(self)
+            bgr = QButtonGroup(self)
+            for j, a_sink in enumerate(sinks):
+                c = QRadioButton(self)
+                bgr.addButton(c)
                 c.setChecked(j == sink)
+                _, _, sink_o = a_sink
+                c.toggled.connect(partial(self.setSink, o, sink_o))
                 grid.addWidget(c, j + 1, i, PyQt5.QtCore.Qt.AlignHCenter)
             s = QSlider(PyQt5.QtCore.Qt.Vertical, self)
             s.setMaximum(153)
