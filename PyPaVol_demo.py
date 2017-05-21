@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QWidget, QGridLayout, QLabel, QSlider, QCheckBox, QA
 from PyQt5.QtGui import QPixmap, QPainter, QPen
 import PyQt5.QtCore
 import textwrap
+from functools import partial
 
 import pulsectl
 
@@ -16,14 +17,14 @@ pulse = pulsectl.Pulse('PyPaVol') # TODO get rid of global object
 def get_tracks():
     tracks = []
     for t in pulse.sink_input_list():
-        track = (t.proplist['application.name'], t.sink, int(100 * t.volume.value_flat))
+        track = (t.proplist['application.name'], t.sink, int(100 * t.volume.value_flat), t)
         tracks.append(track)
     return tracks
 
 def get_sinks():
     sinks = []
     for s in pulse.sink_list():
-        sink = (textwrap.shorten(s.description, width=18), int(100 * s.volume.value_flat))
+        sink = (textwrap.shorten(s.description, width=18), int(100 * s.volume.value_flat), s)
         sinks.append(sink)
     return sinks
 
@@ -40,12 +41,12 @@ class Corner(QWidget):
         painter.setPen(pen)
         half_width, half_height = self.width() / 2, self.height() / 2
         full_width, full_height = self.width(), self.height()
-        if self.x < self.y:
+        if self.x < self.y:    # ──
             painter.drawLine(0, half_height, full_width, half_height)
-        elif self.x == self.y:
+        elif self.x == self.y: # ───┐
             painter.drawLine(0, half_height, half_width, half_height)
             painter.drawLine(half_width, half_height, half_width, full_height)
-        else:
+        else:                  #    │
             painter.drawLine(half_width, 0, half_width, full_height)
         painter.end()
 
@@ -55,6 +56,11 @@ class PyPaVol_demo(QWidget):
         super().__init__()
         self.initUI()
         
+    def setVolume(self, o, volume):
+        vol = volume / 100
+        v = pulsectl.PulseVolumeInfo([vol, vol])
+        pulse.volume_set(o, v)
+    
     def initUI(self):
         
         grid = QGridLayout()
@@ -67,7 +73,7 @@ class PyPaVol_demo(QWidget):
         
         for i, track in enumerate(tracks):
             print(i, track)
-            name, sink, vol = track
+            name, sink, vol, o = track
             l = QLabel(name)
             grid.addWidget(l, 0, i, PyQt5.QtCore.Qt.AlignHCenter)
             for j, _ in enumerate(sinks):
@@ -78,6 +84,7 @@ class PyPaVol_demo(QWidget):
             s.setMaximum(153)
             s.setMinimum(0)
             s.setValue(vol)
+            s.valueChanged.connect(partial(self.setVolume, o))
             grid.addWidget(s, len(sinks) + 2, i, PyQt5.QtCore.Qt.AlignHCenter)
             l = QLabel(str(vol))
             grid.addWidget(l, len(sinks) + 3, i, PyQt5.QtCore.Qt.AlignHCenter)
@@ -86,7 +93,7 @@ class PyPaVol_demo(QWidget):
         skip_v = len(sinks) + 1
         
         for i, sink in enumerate(sinks):
-            name, vol = sink
+            name, vol, o = sink
             l = QLabel(name)
             pos = skip_h + len(sinks) - i - 1
             grid.addWidget(l, skip_v, pos)
@@ -94,6 +101,7 @@ class PyPaVol_demo(QWidget):
             s.setMaximum(153)
             s.setMinimum(0)
             s.setValue(vol)
+            s.valueChanged.connect(partial(self.setVolume, o))
             grid.addWidget(s, skip_v + 1, pos, PyQt5.QtCore.Qt.AlignHCenter)
             l = QLabel(str(vol))
             grid.addWidget(l, skip_v + 2, pos, PyQt5.QtCore.Qt.AlignHCenter)
